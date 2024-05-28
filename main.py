@@ -4,8 +4,8 @@ import argparse
 import sys
 import termios
 import tty
-from random import sample
-from typing import Dict, Set, Tuple
+from random import sample, shuffle
+from typing import Dict, Set
 
 from rich.align import Align
 from rich.live import Live
@@ -18,7 +18,8 @@ class Cell:
     def __init__(self, row: int, col: int):
         self.row = row
         self.col = col
-        self.value = 0  # -1 for mine
+        self.value = 0  # number of mines in the neighborhood
+        self.is_mine = False
         self.revealed = False
         self.flagged = False
         self.trigger: str | None = None
@@ -33,10 +34,6 @@ class Cell:
         self.trigger = trigger
 
     @property
-    def is_mine(self) -> bool:
-        return self.value == -1
-
-    @property
     def display(self) -> Text:
         # Color text based on value
         color_map = [
@@ -49,7 +46,6 @@ class Cell:
             "magenta",  # 6
             "purple",  # 7
             "red",  # 8
-            "red3",  # mine
         ]
         text = Text(
             (
@@ -60,7 +56,7 @@ class Cell:
                 else self.trigger or " "
             ),
             style=(
-                color_map[self.value]
+                ("red3" if self.is_mine else color_map[self.value])
                 if self.revealed
                 else (
                     "yellow"
@@ -77,76 +73,138 @@ class Cell:
         return f"Cell({self.row}, {self.col})"
 
 
+class Mapper:
+    def __init__(self, board: "Board", triggers: Set[str]):
+        self.board = board
+        self.triggers = triggers
+        self.mapping: Dict[str, Cell] = dict()  # currently assigned triggers
+        self.queue: Set[Cell] = set()  # potential cells for a trigger
+
+    def assign_triggers(self):
+        free_triggers = iter(self.triggers - set(self.mapping))
+
+        free_cells = list(self.queue - set(self.mapping.values()))
+        shuffle(free_cells)
+        for free_cell in free_cells:
+            try:
+                self.map(free_cell, next(free_triggers))
+            except StopIteration:
+                # no free triggers
+                break
+
+        if not self.queue:
+            # if extra triggers remain, borrow unrevealed cells
+            free_cells = list(self.board.unrevealed - set(self.mapping.values()))
+            shuffle(free_cells)
+            for free_cell in free_cells:
+                try:
+                    self.map(free_cell, next(free_triggers))
+                except StopIteration:
+                    # no free triggers
+                    break
+
+    def map(self, cell: Cell, trigger: str):
+        self.mapping[trigger] = cell
+        cell.set_trigger(trigger)
+
+    def unmap(self, cell: Cell):
+        if (trigger := cell.trigger) is not None:
+            self.mapping.pop(trigger)
+            cell.set_trigger(None)
+
+    def reset(self):
+        for cell in self.mapping.values():
+            cell.set_trigger(None)
+        self.mapping.clear()
+
+
 class Board:
-    def __init__(self, rows: int, cols: int, mines: int):
+    def __init__(self, rows: int, cols: int, mines: int, no_guessing: bool):
         # properties
         self.rows = rows
         self.cols = cols
-        # stats
         self.mines = mines  # total number of mines
+        self.no_guessing = no_guessing  # False if guessing is allowed
+        # stats
         self.unflagged = mines  # number of remaining (unflagged) mines
+        self.init_cell: Cell | None = None  # initial cell chosen by the player
         # board
         self.board = [[Cell(i, j) for j in range(cols)] for i in range(rows)]
-        self.unrevealed = {(i, j) for i in range(rows) for j in range(cols)}
+        self.unrevealed = {cell for row in self.board for cell in row}
         # triggers
-        self.triggers = set("abcdefghijklmnopqrstuvwxyz")
-        self.mapping: Dict[str, Tuple[int, int]] = dict()  # Currently assigned triggers
-        self.potential_cells: Set[Tuple[int, int]] = (
-            set()
-        )  # Cells in queue for a trigger
+        self.mapper = Mapper(self, set("abcdefghijklmnopqrstuvwxyz"))
+        self.mapper.assign_triggers()  # assign triggers to allow for initial choice
 
-        self.place_mines()
-        self.find_initial_cell()
-        self.assign_triggers()
+    def get_neighbors(self, cell) -> Set[Cell]:
+        return {
+            self.board[i][j]
+            for i in range(max(0, cell.row - 1), min(self.rows, cell.row + 2))
+            for j in range(max(0, cell.col - 1), min(self.cols, cell.col + 2))
+            if i != cell.row or j != cell.col
+        }
 
-    def find_initial_cell(self):
-        non_mine = None
-        # Try to choose a cell that will conveniently expand
-        for row, col in self.unrevealed:
-            if self.board[row][col].value == 0:
-                self.potential_cells.add((row, col))
-                break
-            elif non_mine is None and not self.board[row][col].is_mine:
-                non_mine = (row, col)
-        else:
-            # Try to choose a non-mine cell
-            if non_mine is not None:
-                self.potential_cells.add(non_mine)
-            else:
-                # The board is 100% mines
-                self.potential_cells.add((0, 0))
-
-    def place_mines(self):
-        for row, col in sample(list(self.unrevealed), self.mines):
-            self.board[row][col].value = -1
+    def place_mines(self, init_cell: Cell):
+        # don't generate any mines in the eight squares perimeter of the initial cell (single neighbourhood rule)
+        perimeter = self.get_neighbors(init_cell) | {init_cell}
+        for cell in sample(list(self.unrevealed - perimeter), self.mines):
+            cell.is_mine = True
             # Assign numbers to surrounding cells
-            for x in range(max(0, row - 1), min(self.rows, row + 2)):
-                for y in range(max(0, col - 1), min(self.cols, col + 2)):
-                    if not self.board[x][y].is_mine:
-                        self.board[x][y].value += 1
+            for cell in self.get_neighbors(cell):
+                cell.value += 1
 
-    def assign_triggers(self):
-        free_cells = self.potential_cells - set(self.mapping.values())
+        if self.no_guessing and not Solver(self).solve():
+            self.reset()  # regenerate self.board + self.unrevealed
+            self.place_mines(self.board[init_cell.row][init_cell.col])
 
-        for trigger in self.triggers:
-            if not free_cells:
-                break
-            if trigger not in self.mapping:
-                row, col = free_cells.pop()  # relies on randomness of sets in Python
-                self.mapping[trigger] = (row, col)
-                self.board[row][col].set_trigger(trigger)
+    def reveal_cell(self, cell: Cell) -> bool:
+        def expand(cell: Cell):
+            cell.reveal()
+            self.unrevealed.discard(cell)
+            self.mapper.queue.discard(cell)
+            self.mapper.unmap(cell)
 
-        if not self.potential_cells:
-            # if extra triggers remain, borrow unrevealed cells
-            unrevealed_cells = iter(self.unrevealed)
-            for trigger in self.triggers - set(self.mapping.keys()):
-                try:
-                    row, col = next(unrevealed_cells)
-                    self.mapping[trigger] = (row, col)
-                    self.board[row][col].set_trigger(trigger)
-                except StopIteration:
-                    # no unrevealed cells remain
-                    break
+            for neighbour in self.get_neighbors(cell):
+                if not neighbour.revealed:
+                    if cell.value == 0:
+                        expand(neighbour)
+                    elif not neighbour.flagged:
+                        self.mapper.queue.add(neighbour)
+
+        if self.init_cell is None:
+            self.init_cell = cell
+            # place mines after first cell is revealed
+            self.place_mines(cell)
+            # reset triggers after initial cell is chosen
+            self.mapper.reset()
+
+        if cell.is_mine:
+            return True
+        expand(cell)
+        self.mapper.assign_triggers()
+        return False
+
+    def reveal_all(self):
+        for cell in self.unrevealed:
+            cell.reveal()
+
+    def flag(self, cell: Cell):
+        cell.toggle_flag()
+        self.mapper.queue.discard(cell)
+        self.mapper.unmap(cell)
+        self.mapper.assign_triggers()
+        self.unflagged -= 1
+
+    def unflag_all(self):
+        for cell in self.unrevealed:
+            if cell.flagged:
+                cell.toggle_flag()
+                self.mapper.queue.add(cell)
+        self.unflagged = self.mines
+        self.mapper.assign_triggers()
+
+    def reset(self):
+        self.board = [[Cell(i, j) for j in range(self.cols)] for i in range(self.rows)]
+        self.unrevealed = {cell for row in self.board for cell in row}
 
     def display_board(self):
         table = Table(show_header=False, show_lines=True)
@@ -154,63 +212,100 @@ class Board:
             table.add_row(*[cell.display for cell in self.board[i]])
         return table
 
-    def reveal_cell(self, trigger: str) -> bool:
-        def expand(row: int, col: int):
-            self.board[row][col].reveal()
-            self.unrevealed.discard((row, col))
-            self.potential_cells.discard((row, col))
-            if (trigger := self.board[row][col].trigger) is not None:
-                self.mapping.pop(trigger)
-                self.board[row][col].set_trigger(None)
-
-            for x in range(max(0, row - 1), min(self.rows, row + 2)):
-                for y in range(max(0, col - 1), min(self.cols, col + 2)):
-                    if not self.board[x][y].revealed:
-                        if self.board[row][col].value == 0:
-                            expand(x, y)
-                        elif not self.board[x][y].flagged:
-                            self.potential_cells.add((x, y))
-
-        row, col = self.mapping[trigger]
-        cell = self.board[row][col]
-        if cell.is_mine:
-            return True
-
-        expand(row, col)
-        self.assign_triggers()
-        return False
-
-    def flag(self, trigger: str):
-        row, col = self.mapping[trigger]
-        self.board[row][col].toggle_flag()
-        self.board[row][col].set_trigger(None)
-        self.potential_cells.discard((row, col))
-        self.mapping.pop(trigger)
-        self.unflagged -= 1
-        self.assign_triggers()
-
-    def reveal_all(self):
-        for i, j in self.unrevealed:
-            self.board[i][j].revealed = True
-
-    def unflag_all(self):
-        for row, col in self.unrevealed:
-            if self.board[row][col].flagged:
-                self.board[row][col].toggle_flag()
-                self.potential_cells.add((row, col))
-        self.unflagged = self.mines
-        self.assign_triggers()
-
     def check_win(self) -> bool:
-        for i, j in self.unrevealed:
-            if not self.board[i][j].is_mine:
+        for cell in self.unrevealed:
+            if not cell.is_mine:
                 return False
         return True
 
 
+class Solver:
+    def __init__(self, board: Board):
+        # deep-copy the board
+        self.board = []
+        self.rows = board.rows
+        self.cols = board.cols
+        self.unrevealed = set()
+        self.flagged: Set[Cell] = set()
+        self.cells = set()
+        for row in board.board:
+            row_copy = []
+            for cell in row:
+                cell_copy = Cell(cell.row, cell.col)
+                cell_copy.value = cell.value
+                cell_copy.is_mine = cell.is_mine
+                if cell.revealed:
+                    cell_copy.revealed = True
+                else:
+                    self.unrevealed.add(cell_copy)
+                row_copy.append(cell_copy)
+            self.board.append(row_copy)
+
+    def solve(self) -> bool:
+        while self.propagate_known_values():
+            continue
+
+        if self.unrevealed:
+            for cell in self.find_safe_cells():
+                self.reveal_cell(cell)
+
+        return not self.unrevealed - self.flagged
+
+    def propagate_known_values(self) -> bool:
+        changes = False
+        for row in range(self.rows):
+            for col in range(self.cols):
+                cell = self.board[row][col]
+                if cell.revealed and not cell.is_mine:
+                    neighbours = self.get_neighbors(cell)
+                    revealed_neighbors = {n for n in neighbours if n.revealed}
+                    flagged_neighbors = {n for n in neighbours if n.flagged}
+                    unrevealed_neighbors = (
+                        neighbours - revealed_neighbors - flagged_neighbors
+                    )
+
+                    if cell.value == len(flagged_neighbors):
+                        for neighbor in unrevealed_neighbors:
+                            self.reveal_cell(cell)
+                            changes = True
+                    elif cell.value == len(revealed_neighbors) + len(flagged_neighbors):
+                        for neighbor in unrevealed_neighbors:
+                            neighbor.toggle_flag()
+                            self.flagged.add(cell)
+                            changes = True
+        return changes
+
+    def find_safe_cells(self) -> Set[Cell]:
+        safe_cells = set()
+        for cell in self.unrevealed - self.flagged:
+            neighbors = self.get_neighbors(cell)
+            revealed_neighbors = {n for n in neighbors if n.revealed}
+            flagged_neighbors = {n for n in neighbors if n.flagged}
+            if sum(n.value for n in revealed_neighbors) + len(flagged_neighbors) == 0:
+                safe_cells.add(cell)
+        return safe_cells
+
+    def get_neighbors(self, cell) -> Set[Cell]:
+        return {
+            self.board[i][j]
+            for i in range(max(0, cell.row - 1), min(self.rows, cell.row + 2))
+            for j in range(max(0, cell.col - 1), min(self.cols, cell.col + 2))
+            if i != cell.row or j != cell.col
+        }
+
+    def reveal_cell(self, cell):
+        cell.reveal()
+        self.unrevealed.discard(cell)
+
+        for neighbour in self.get_neighbors(cell):
+            if not neighbour.revealed:
+                if cell.value == 0:
+                    self.reveal_cell(neighbour)
+
+
 class Minesweeper:
-    def __init__(self, rows: int, cols: int, mines: int):
-        self.board = Board(rows, cols, mines)
+    def __init__(self, board: Board):
+        self.board = board
 
     def getch(self) -> str:
         fd = sys.stdin.fileno()
@@ -248,20 +343,17 @@ class Minesweeper:
                     sys.exit()
                 # Enter key to randomize triggers
                 if choice == "\r":
-                    for trigger in self.board.mapping:
-                        row, col = self.board.mapping[trigger]
-                        self.board.board[row][col].set_trigger(None)
-                    self.board.mapping.clear()
-                    self.board.assign_triggers()
+                    self.board.mapper.reset()
+                    self.board.mapper.assign_triggers()
                 # Backspace to unflag all cells
                 elif choice == "\x7f":
                     self.board.unflag_all()
-                elif choice.lower() in self.board.mapping:
+                elif choice.lower() in self.board.mapper.mapping:
                     # if upper case letter is pressed, toggle flag
                     if choice.isupper():
-                        self.board.flag(choice.lower())
+                        self.board.flag(self.board.mapper.mapping[choice.lower()])
                     else:
-                        if self.board.reveal_cell(choice):
+                        if self.board.reveal_cell(self.board.mapper.mapping[choice]):
                             # player hit a mine
                             self.board.reveal_all()
                             update_board("[red]Game Over! You hit a mine!")
@@ -299,6 +391,13 @@ if __name__ == "__main__":
         default=0.15,
         help="Percentage of mines in the board",
     )
+    parser.add_argument(
+        "-n",
+        "--no-guessing",
+        help="Enable no-guessing mode",
+        default=False,
+        action="store_true",
+    )
     args = parser.parse_args()
 
     assert args.rows > 0, "Number of rows must a positive non-zero integer"
@@ -308,5 +407,6 @@ if __name__ == "__main__":
     ), "Percentage of mines must a decimal number between 0 and 1"
 
     mines = int(args.rows * args.cols * args.mines)
-    game = Minesweeper(args.rows, args.cols, mines)
+    board = Board(args.rows, args.cols, mines, args.no_guessing)
+    game = Minesweeper(board)
     game.play()
