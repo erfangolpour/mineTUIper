@@ -147,10 +147,11 @@ class Solver:
                     # all remaining cells must be mines
                     to_flag |= unknown_cells
                 else:
-                    # if one cluster alone can satisfy the board, any other cell is safe
-                    for cluster in self.get_neighbour_clusters(unknown_cells):
-                        if cluster.mines == self.board.unflagged:
-                            to_reveal |= unknown_cells - cluster.cells
+                    # if clustes can satisfy the board, any other cell is safe
+                    if sum(cluster.mines for cluster in self.clusters) == self.board.unflagged:
+                        for cluster in self.clusters:
+                            unknown_cells -= cluster.cells
+                        to_reveal |= unknown_cells
                     if not to_reveal:
                         return False  # no advancement could be made
             else:
