@@ -147,7 +147,7 @@ class Solver:
                     # all remaining cells must be mines
                     to_flag |= unknown_cells
                 else:
-                    # if clustes can satisfy the board, any other cell is safe
+                    # if clusters can satisfy the board, any other cell is safe
                     if sum(cluster.mines for cluster in self.clusters) == self.board.unflagged:
                         for cluster in self.clusters:
                             unknown_cells -= cluster.cells
