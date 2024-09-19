@@ -55,9 +55,9 @@ class Minesweeper:
                 elif choice == "\r":
                     self.board.mapper.reset()
                     self.board.mapper.assign_triggers()
-                # Backspace to unflag all cells
+                # Backspace to remap all flags
                 elif choice == "\x7f":
-                    self.board.unflag_all()
+                    self.board.remap_flags()
                 elif choice.lower() in self.board.mapper.mapping:
                     # if upper case letter is pressed, toggle flag
                     if choice.isupper():
@@ -86,14 +86,14 @@ if __name__ == "__main__":
         "-r",
         "--rows",
         type=int,
-        default=10,
+        default=19,
         help="number of rows in the board",
     )
     parser.add_argument(
         "-c",
         "--cols",
         type=int,
-        default=10,
+        default=32,
         help="number of columns in the board",
     )
     parser.add_argument(
@@ -111,9 +111,9 @@ if __name__ == "__main__":
         help="seed for the randomness",
     )
     parser.add_argument(
-        "-n",
-        "--no-guessing",
-        help="enable no-guessing mode",
+        "-g",
+        "--guess-allowed",
+        help="disable no-guessing mode",
         default=False,
         action="store_true",
     )
@@ -126,6 +126,6 @@ if __name__ == "__main__":
     ), "Percentage of mines must a decimal number between 0 and 1"
 
     mines = int(args.rows * args.cols * args.mines)
-    board = MappedBoard(args.rows, args.cols, mines, args.no_guessing)
+    board = MappedBoard(args.rows, args.cols, mines, not args.guess_allowed)
     game = Minesweeper(board)
     game.play()

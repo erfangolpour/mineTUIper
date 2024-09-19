@@ -129,10 +129,9 @@ class MappedBoard(Board):
         self.mapper.unmap(cell)
         self.mapper.assign_triggers()
 
-    def unflag_all(self):
-        for cell in self.flagged:
-            self.unflag_cell(cell)
-            self.mapper.queue.add(cell)
+    def remap_flags(self):
+        self.mapper.queue |= self.flagged
+        self.unflag_all()
         self.mapper.assign_triggers()
 
 

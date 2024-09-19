@@ -25,7 +25,7 @@ class Cell:
         self.known = True
         self.revealed = True
 
-    def unreveal(self):
+    def hide(self):
         self.known = False
         self.revealed = False
 
@@ -58,9 +58,7 @@ class Cell:
             (
                 ("*" if self.is_mine else str(self.mines or "-"))
                 if self.revealed
-                else "?"
-                if self.flagged
-                else self.trigger or " "
+                else "?" if self.flagged else self.trigger or " "
             ),
             style=(
                 ("red3" if self.is_mine else color_map[self.mines])
@@ -68,9 +66,7 @@ class Cell:
                 else (
                     "yellow"
                     if self.trigger is not None
-                    else "red3"
-                    if self.flagged
-                    else "default"
+                    else "red3" if self.flagged else "default"
                 )
             ),
         )
@@ -130,10 +126,16 @@ class Board:
             ):
                 self.reveal_cell(neighbour)
 
-    def unreveal_cell(self, cell: Cell):
-        cell.unreveal()
+    def hide(self, cell: Cell):
+        cell.hide()
         self.revealed.discard(cell)
         self.unrevealed.add(cell)
+
+    def hide_all(self):
+        for cell in self.revealed:
+            cell.hide()
+        self.unrevealed |= self.revealed
+        self.revealed.clear()
 
     def reveal_all(self):
         for cell in self.unrevealed:
@@ -150,17 +152,22 @@ class Board:
 
     def unflag_cell(self, cell: Cell):
         cell.unflag()
-        self.flagged.discard(cell)
+        for neighbour in self.get_neighbour_cells(cell):
+            neighbour.flags -= 1
         self.unflagged += 1
-        for cell in self.get_neighbour_cells(cell):
-            cell.flags -= 1
+        self.flagged.discard(cell)
+
+    def unflag_all(self):
+        for cell in self.flagged:
+            cell.unflag()
+            for neighbour in self.get_neighbour_cells(cell):
+                neighbour.flags -= 1
+        self.unflagged += len(self.flagged)
+        self.flagged.clear()
 
     def reset(self):
-        for cell in self.revealed.copy():
-            self.unreveal_cell(cell)
-
-        for cell in self.flagged.copy():
-            self.unflag_cell(cell)
+        self.hide_all()
+        self.unflag_all()
 
     def display_board(self):
         table = Table(show_header=False, show_lines=True)

@@ -22,11 +22,19 @@ class Cluster:
     def __init__(self, cells: Set[Cell], n_mine: int):
         self.cells = cells
         self.mines = n_mine
-
-    @property
-    def mine_perc(self) -> float:
         # NOTE: we assume self.cells is never empty based on prior checks
-        return self.mines / len(self.cells)
+        self.mine_perc = self.mines / len(self.cells)
+
+
+def get_common_cells(
+    clusters: Sequence[Cluster],
+) -> Set[Cell]:
+    """Return all cells that two or more clusters share with each other"""
+    common_cells: Set[Cell] = set()
+    for i in range(len(clusters) - 1):
+        for j in range(i + 1, len(clusters)):
+            common_cells |= clusters[i].cells & clusters[j].cells
+    return common_cells
 
 
 class Solver:
@@ -61,7 +69,7 @@ class Solver:
                     self.cluster_map[neighbour].add(cluster)
                 self.clusters.append(cluster)
 
-        # Refactor clusters:
+        # Refactor Clusters:
         # This will effectively subtract subclusters from larger clusters, dividing
         # them into their building blocks. This can greatly assist the logic engine
         changes = True
@@ -82,6 +90,7 @@ class Solver:
                         if neighbour_cluster.cells < cluster.cells:
                             cluster.mines -= neighbour_cluster.mines
                             cluster.cells -= neighbour_cluster.cells
+                            cluster.mine_perc = cluster.mines / len(cluster.cells)
                             changes = True
 
                     if cluster.cells:
@@ -99,15 +108,6 @@ class Solver:
                 cluster_combinations = get_combinations(
                     self.get_neighbour_clusters(unknown_neighbours)
                 )
-
-                def get_common_cells(
-                    clusters: Sequence[Cluster],
-                ) -> Set[Cell]:
-                    common_cells: Set[Cell] = set()
-                    for i in range(len(clusters) - 1):
-                        for j in range(i + 1, len(clusters)):
-                            common_cells |= clusters[i].cells & clusters[j].cells
-                    return common_cells
 
                 # avoid overlapping cluster combinations
                 for cluster_comb in {
