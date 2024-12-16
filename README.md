@@ -1,6 +1,6 @@
-# Minesweeper TUI
+# mineTUIper
 
-Minesweeper TUI is a terminal-based Minesweeper game that can be played using keyboard controls. It also includes an analyzer for solving and analyzing Minesweeper boards. The game is implemented in Python using the `rich` library for the terminal interface.
+mineTUIper is a terminal-based Minesweeper game that can be played using keyboard controls. It also includes an analyzer for solving and analyzing Minesweeper boards. The game is implemented in Python using the `rich` library for the terminal interface.
 
 ## Features
 
