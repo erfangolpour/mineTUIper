@@ -91,10 +91,34 @@ class Analyzer:
                     cur_step += 1
 
                 if board.check_win():
-                    update_board(
-                        "Deterministic board generated. Attempting to verify..."
-                    )
-                    self.getch()
+                    if self.no_guessing:
+                        # Verify the board by re-solving:
+                        board.reset()
+                        board.reveal_cell(init_cell)
+                        skip = False
+                        cur_step = 0
+                        while solver.propagate_known_values():
+                            if self.debug and not skip:
+                                update_board(
+                                    f"Step: {cur_step} | Enter: Skip - Space: Continue - Esc: Quit"
+                                )
+                                choice = self.getch()
+
+                                # Escape to exit
+                                if choice == "\x1b":
+                                    sys.exit()
+                                # Space to skip
+                                elif choice == "\r":
+                                    skip = True
+
+                            cur_step += 1
+                        update_board(
+                            "[green]Deterministic board generated and verified."
+                        )
+                    else:
+                        update_board(
+                            "[green]Board solved through probabilistic guessing."
+                        )
                     break
                 elif self.no_guessing:
                     debug_report("[red]The solver cannot advance. Finding a remedy...")
@@ -160,8 +184,12 @@ class Analyzer:
                     best_guess = solver.make_guess()
                     board.reveal_cell(best_guess)
                     if best_guess.is_mine:
-                        update_board("[red]Best guess was a mine. Reinitialized...")
-                        self.getch()
+                        update_board("[red]Best guess was a mine. Reinitializing...")
+
+                        choice = self.getch()
+                        # Escape to exit
+                        if choice == "\x1b":
+                            sys.exit()
 
                         board = Board(self.rows, self.cols, self.mines)
                         board.place_mines(
@@ -177,28 +205,6 @@ class Analyzer:
                 update_board("Working...")
 
             # wait for key before quitting
-            # re-solve:
-            board.reset()
-            board.reveal_cell(init_cell)
-            skip = False
-            cur_step = 0
-            while solver.propagate_known_values():
-                if self.debug and not skip:
-                    update_board(
-                        f"Step: {cur_step} | Enter: Skip - Space: Continue - Esc: Quit"
-                    )
-                    choice = self.getch()
-
-                    # Escape to exit
-                    if choice == "\x1b":
-                        sys.exit()
-                    # Space to skip
-                    elif choice == "\r":
-                        skip = True
-
-                cur_step += 1
-
-            update_board("[green]Deterministic board generated and verified.")
             self.getch()
 
 

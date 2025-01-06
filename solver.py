@@ -148,7 +148,10 @@ class Solver:
                     to_flag |= unknown_cells
                 else:
                     # if clusters can satisfy the board, any other cell is safe
-                    if sum(cluster.mines for cluster in self.clusters) == self.board.unflagged:
+                    if (
+                        sum(cluster.mines for cluster in self.clusters)
+                        == self.board.unflagged
+                    ):
                         for cluster in self.clusters:
                             unknown_cells -= cluster.cells
                         to_reveal |= unknown_cells
@@ -176,7 +179,9 @@ class Solver:
             if cluster.mine_perc < best_cluster.mine_perc:
                 best_cluster = cluster
 
-        if best_cluster.mine_perc > unclusterd_mines / len(unclusterd_cells):
+        if unclusterd_cells and best_cluster.mine_perc > unclusterd_mines / len(
+            unclusterd_cells
+        ):
             # it is safer to choose a cell from unclusterd territory
             return rand_choice(list(unclusterd_cells))
         return rand_choice(list(best_cluster.cells))
