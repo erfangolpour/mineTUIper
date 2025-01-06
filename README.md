@@ -11,25 +11,30 @@ mineTUIper is a terminal-based Minesweeper game that can be played using keyboar
 ## Installation
 
 1. Clone the repository:
-    ```bash
-    git clone https://github.com/erfangolpour/Minesweeper-tui.git
-    cd Minesweeper-tui
-    ```
+
+   ```bash
+   git clone https://github.com/erfangolpour/mineTUIper.git
+   cd mineTUIper
+   ```
+
 2. Install the required dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ## Usage
 
 ### Playing the Game
 
 To start the game, run:
+
 ```bash
 python minesweeper.py
 ```
 
 Optional arguments:
+
 - `-r`, `--rows`: Number of rows in the board (default: 19)
 - `-c`, `--cols`: Number of columns in the board (default: 32)
 - `-m`, `--mines`: Percentage of mines in the board (default: 0.25)
@@ -39,11 +44,13 @@ Optional arguments:
 ### Analyzer
 
 To analyze Minesweeper boards, run:
+
 ```bash
 python analyzer.py
 ```
 
 Optional arguments:
+
 - `-r`, `--rows`: Number of rows in the board (default: 10)
 - `-c`, `--cols`: Number of columns in the board (default: 10)
 - `-m`, `--mines`: Percentage of mines in the board (default: 0.25)
