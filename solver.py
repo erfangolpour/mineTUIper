@@ -50,9 +50,7 @@ class Solver:
 
     def get_neighbour_clusters(self, cells: Set[Cell]) -> Set[Cluster]:
         """return any cluster that has a cell in common with the given cells"""
-        return {
-            cluster for neighbour in cells for cluster in self.cluster_map[neighbour]
-        }
+        return {cluster for neighbour in cells for cluster in self.cluster_map[neighbour]}
 
     def propagate_known_values(self) -> bool:
         to_reveal: Set[Cell] = set()
@@ -102,39 +100,27 @@ class Solver:
             self.cluster_map = refactored_clusters
 
         for cell in self.board.revealed:
-            if unknown_neighbours := {
-                n for n in self.board.get_neighbour_cells(cell) if not n.known
-            }:
-                cluster_combinations = get_combinations(
-                    self.get_neighbour_clusters(unknown_neighbours)
-                )
+            if unknown_neighbours := {n for n in self.board.get_neighbour_cells(cell) if not n.known}:
+                cluster_combinations = get_combinations(self.get_neighbour_clusters(unknown_neighbours))
 
                 # avoid overlapping cluster combinations
                 for cluster_comb in {
-                    cluster_comb
-                    for cluster_comb in cluster_combinations
-                    if not get_common_cells(cluster_comb)
+                    cluster_comb for cluster_comb in cluster_combinations if not get_common_cells(cluster_comb)
                 }:
                     cluster_comb_mines = sum(cluster.mines for cluster in cluster_comb)
-                    cluster_comb_cells = {
-                        cell for cluster in cluster_comb for cell in cluster.cells
-                    }
+                    cluster_comb_cells = {cell for cluster in cluster_comb for cell in cluster.cells}
                     # if the cluster permits less mines than the cell needs
                     # and the remaining neighbours are just enough to satisfy
                     # the difference, the remaining neighbours are mines
                     if (
                         cluster_comb_mines < cell.mines - cell.flags
-                        and len(unknown_neighbours - cluster_comb_cells)
-                        == cell.mines - cell.flags - cluster_comb_mines
+                        and len(unknown_neighbours - cluster_comb_cells) == cell.mines - cell.flags - cluster_comb_mines
                     ):
                         to_flag |= unknown_neighbours - cluster_comb_cells
                     # if the mines introduced by the cluster are contained by
                     # the cell's neighbourhood AND satisfy the cell, the
                     # remaining neighbours are safe
-                    elif (
-                        cluster_comb_cells < unknown_neighbours
-                        and cluster_comb_mines == cell.mines - cell.flags
-                    ):
+                    elif cluster_comb_cells < unknown_neighbours and cluster_comb_mines == cell.mines - cell.flags:
                         to_reveal |= unknown_neighbours - cluster_comb_cells
 
         if len(to_reveal) == 0 and len(to_flag) == 0:
@@ -148,10 +134,7 @@ class Solver:
                     to_flag |= unknown_cells
                 else:
                     # if clusters can satisfy the board, any other cell is safe
-                    if (
-                        sum(cluster.mines for cluster in self.clusters)
-                        == self.board.unflagged
-                    ):
+                    if sum(cluster.mines for cluster in self.clusters) == self.board.unflagged:
                         for cluster in self.clusters:
                             unknown_cells -= cluster.cells
                         to_reveal |= unknown_cells
@@ -179,9 +162,7 @@ class Solver:
             if cluster.mine_perc < best_cluster.mine_perc:
                 best_cluster = cluster
 
-        if unclusterd_cells and best_cluster.mine_perc > unclusterd_mines / len(
-            unclusterd_cells
-        ):
+        if unclusterd_cells and best_cluster.mine_perc > unclusterd_mines / len(unclusterd_cells):
             # it is safer to choose a cell from unclusterd territory
             return rand_choice(list(unclusterd_cells))
         return rand_choice(list(best_cluster.cells))

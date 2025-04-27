@@ -2,8 +2,7 @@
 
 import argparse
 import sys
-import termios
-import tty
+import os
 
 from rich.align import Align
 from rich.live import Live
@@ -11,12 +10,20 @@ from rich.panel import Panel
 
 from mapper import MappedBoard
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import tty
+    import termios
 
 class Minesweeper:
     def __init__(self, board: MappedBoard):
         self.board = board
 
     def getch(self) -> str:
+        if os.name == "nt":
+            return msvcrt.getch().decode("utf-8")
+        
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:

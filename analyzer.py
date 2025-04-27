@@ -16,9 +16,7 @@ from solver import Solver
 
 
 class Analyzer:
-    def __init__(
-        self, rows: int, cols: int, mines: int, debug: bool, no_guessing: bool
-    ):
+    def __init__(self, rows: int, cols: int, mines: int, debug: bool, no_guessing: bool):
         self.rows = rows
         self.cols = cols
         self.mines = mines
@@ -76,9 +74,7 @@ class Analyzer:
                 cur_step = 0
                 while solver.propagate_known_values():
                     if self.debug and not skip:
-                        update_board(
-                            f"Step: {cur_step} | Enter: Skip - Space: Continue - Esc: Quit"
-                        )
+                        update_board(f"Step: {cur_step} | Enter: Skip - Space: Continue - Esc: Quit")
                         choice = self.getch()
 
                         # Escape to exit
@@ -99,9 +95,7 @@ class Analyzer:
                         cur_step = 0
                         while solver.propagate_known_values():
                             if self.debug and not skip:
-                                update_board(
-                                    f"Step: {cur_step} | Enter: Skip - Space: Continue - Esc: Quit"
-                                )
+                                update_board(f"Step: {cur_step} | Enter: Skip - Space: Continue - Esc: Quit")
                                 choice = self.getch()
 
                                 # Escape to exit
@@ -112,36 +106,26 @@ class Analyzer:
                                     skip = True
 
                             cur_step += 1
-                        update_board(
-                            "[green]Deterministic board generated and verified."
-                        )
+                        update_board("[green]Deterministic board generated and verified.")
                     else:
-                        update_board(
-                            "[green]Board solved through probabilistic guessing."
-                        )
+                        update_board("[green]Board solved through probabilistic guessing.")
                     break
                 elif self.no_guessing:
                     debug_report("[red]The solver cannot advance. Finding a remedy...")
 
                     unknown_cells = board.unrevealed - board.flagged
                     neighbour_cells = {
-                        neighbour
-                        for cell in unknown_cells
-                        for neighbour in board.get_neighbour_cells(cell)
+                        neighbour for cell in unknown_cells for neighbour in board.get_neighbour_cells(cell)
                     }
                     if not neighbour_cells & board.revealed:
                         # mines are surrounded by flags, remove a random flag
                         # to allow advancement (forces higher mine density)
-                        cell = rand_choice(
-                            [cell for cell in neighbour_cells if cell.flagged]
-                        )
+                        cell = rand_choice([cell for cell in neighbour_cells if cell.flagged])
                         board.unflag_cell(cell)
                         cell.is_mine = False
                         for neighbour in board.get_neighbour_cells(cell):
                             neighbour.mines -= 1
-                        board.place_mines(
-                            unknown_cells, board.unflagged
-                        )  # relocate the removed mine
+                        board.place_mines(unknown_cells, board.unflagged)  # relocate the removed mine
 
                         # NOTE: Relocating flags can generate undeterministic
                         # boards by assuming the solver had no prior knowledge
@@ -151,16 +135,12 @@ class Analyzer:
                         board.reset()
                         board.reveal_cell(init_cell)
 
-                        debug_report(
-                            "Mine wall detected. Flag got removed. Re-solving..."
-                        )
+                        debug_report("Mine wall detected. Flag got removed. Re-solving...")
                     elif len(unknown_cells) == board.unflagged + 1:
                         # the board is unsolvable, reinitialize
                         board = Board(self.rows, self.cols, self.mines)
                         board.place_mines(
-                            board.unrevealed
-                            - {init_cell}
-                            - board.get_neighbour_cells(init_cell),
+                            board.unrevealed - {init_cell} - board.get_neighbour_cells(init_cell),
                             board.unflagged,
                         )
                         board.reveal_cell(init_cell)
@@ -174,9 +154,7 @@ class Analyzer:
                         # We could re-reveal these cells to cause the cascade. However,
                         # in practice, this is not necessary as the solver seems to
                         # advances regardless when this occurs.
-                        board.place_mines(
-                            board.unrevealed - board.flagged, board.unflagged
-                        )
+                        board.place_mines(board.unrevealed - board.flagged, board.unflagged)
                         debug_report("Surrounding mines rearranged.")
                 else:
                     # guessing is allowed
@@ -193,9 +171,7 @@ class Analyzer:
 
                         board = Board(self.rows, self.cols, self.mines)
                         board.place_mines(
-                            board.unrevealed
-                            - {init_cell}
-                            - board.get_neighbour_cells(init_cell),
+                            board.unrevealed - {init_cell} - board.get_neighbour_cells(init_cell),
                             board.unflagged,
                         )
                         board.reveal_cell(init_cell)
@@ -256,9 +232,7 @@ if __name__ == "__main__":
 
     assert args.rows > 0, "Number of rows must be a positive non-zero integer"
     assert args.cols > 0, "Number of columns must be a positive non-zero integer"
-    assert (
-        0 <= args.mines <= 1
-    ), "Percentage of mines must be a decimal number between 0 and 1"
+    assert 0 <= args.mines <= 1, "Percentage of mines must be a decimal number between 0 and 1"
 
     set_seed(args.seed)
     mines = int(args.rows * args.cols * args.mines)
